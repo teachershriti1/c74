@@ -48,9 +48,80 @@ this.setState({
                 })
         }
     }
+    
+    checkStudentEligibilityForBookIssue=async()=>{
+const studentRef=await db.collection("Students").where("studentId","==",this.state.scannedStudentId).get()
+var isStudentEligible=""   
+if(studentRef.docs.length==0){
+  this.setState({
+    scannedStudentId:'',
+    scannedBookId:''
+  })
+  isStudentEligible=false
+  alert("This student Id doesn't exist in the database")
+} 
+else{
+  studentRef.docs.map((doc)=>{
+    var student=doc.data()
+    if(student.numberOfBooksIssued<2){
+      isStudentEligible=true
+    }
+    else{
+      isStudentEligible=false
+      alert("The student has already issued two books")
+      this.setState({
+        scannedStudentId:'',
+        scannedBookId:''
+      })
+    }
+    
+  })
+}
+return isStudentEligible;
+}
+
+checkStudentEligibilityForBookReturn=async()=>{
+  const transactionRef=await db.collection("Transactions").where("bookId","==",this.state.scannedBookId).limit(1).get()
+var isStudentEligible=""  
+transactionRef.docs.map((doc)=>{
+  var lastBookTransaction=doc.data()
+  if(lastBookTransaction.studentId===this.state.scannedStudentId){
+    isStudentEligible=true
+  }
+  else{
+    isStudentEligible=false
+    alert("This book wasn't issued by this student")
+    this.setState({
+scannedStudentId:'',
+scannedBookId:''
+    })
+  }
+}) 
+return isStudentEligible;
+}
+
+checkBookEligibility=async()=>{
+  const bookRef=await db.collection("Books").where("bookId","==",this.state.scannedBookId).get()
+var transactionType=''
+if(bookRef.docs.length==0){
+  transactionType=false
+}
+else{
+  bookRef.docs.map((doc)=>{
+    var book=doc.data()
+    if(book.bookAvailability){
+      transactionType="Issue"
+    }
+    else{
+      transactionType="Return"
+    }
+  })
+}
+return transactionType;
+}
 
     handleTransaction=async()=>{
-    var transactionMessage
+    /*var transactionMessage
     db.collection("Books").doc(this.state.scannedBookId).get()
     .then((doc)=>{
         
@@ -72,7 +143,31 @@ this.setState({
     })
     this.setState({
         transactionMessage:transactionMessage,
-    })
+    })*/
+    var transactionType=await this.checkBookEligibility()
+    console.log("Transaction type", transactionType)
+    if(!transactionType){
+      alert("This book doesnt exist in the library database!");
+      this.setState({
+        scannedStudentId:'',
+        scannedBookId:''
+      })
+    }
+    else if(transactionType==="Issue"){
+      var isStudentEligible=await this.checkStudentEligibilityForBookIssue()
+      if(isStudentEligible){
+        this.initiateBookIssue();
+        alert("Book issued to the student!")
+      }
+     
+    }
+    else{
+      var isStudentEligible=await this.checkStudentEligibilityForBookReturn()
+      if(isStudentEligible)  {
+        this.initiateBookReturn();
+alert("Book returned to the library!")
+      }
+    }
     }
     
     initiateBookIssue=async()=>    {
@@ -188,10 +283,7 @@ render(){
             style = {styles.submitButton}
             onPress={async()=>{
               this.handleTransaction();
-              this.setState({
-                scannedStudentId : '',
-                scannedBookId: ''
-              })
+              
               }}>
                 <Text style={styles.submitButtonText}>Submit</Text>
 
